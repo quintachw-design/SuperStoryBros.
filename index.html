@@ -1,0 +1,939 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>故事寫作大冒險</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=DotGothic16&family=Press+Start+2P&display=swap" rel="stylesheet">
+    <!-- 引入 Tone.js 來處理背景音樂 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #5C94FC; /* Classic Mario Sky Blue */
+            font-family: 'DotGothic16', sans-serif; /* 統一預設字體為點陣中文 */
+            font-weight: 400; /* DotGothic16 只有 400 weight */
+            touch-action: none;
+            user-select: none;
+        }
+        
+        /* 英文專屬的 8-bit 像素字體 */
+        .pixel-font { font-family: 'Press Start 2P', cursive; }
+        
+        /* 中文點陣字體微調：因為字型本身的特性，加一點 letter-spacing 看起來更好 */
+        .zh-heavy { font-family: 'DotGothic16', sans-serif; font-weight: 400; letter-spacing: 2px; }
+
+        canvas {
+            display: block;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        /* 瑪利歐風格 UI 容器 */
+        .mario-panel {
+            background-color: #FFF;
+            border: 6px solid #000;
+            border-radius: 16px;
+            box-shadow: 8px 8px 0 rgba(0,0,0,0.4), inset -4px -4px 0 rgba(0,0,0,0.15);
+            position: relative;
+        }
+
+        /* 經典文字黑邊陰影 */
+        .mario-text-shadow {
+            text-shadow: 2px 2px 0 #000, -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, 0px 4px 0 rgba(0,0,0,0.6);
+        }
+
+        /* 瑪利歐風格按鈕 */
+        .mario-btn {
+            border: 4px solid #000;
+            border-radius: 12px;
+            box-shadow: 0 6px 0 #000, 0 8px 10px rgba(0,0,0,0.4);
+            transition: all 0.1s;
+            text-transform: uppercase;
+            position: relative;
+            font-weight: 400; /* DotGothic16 不支援 bold，改回 400 */
+        }
+        .mario-btn:active {
+            transform: translateY(6px);
+            box-shadow: 0 0 0 #000, 0 0 0 rgba(0,0,0,0);
+        }
+        .mario-btn-green { background-color: #43B047; color: white; }
+        .mario-btn-yellow { background-color: #FBD000; color: #000; }
+        .mario-btn-red { background-color: #E52521; color: white; }
+        .mario-btn-pink { background-color: #FF69B4; color: white; }
+
+        /* 排行榜結構化表格樣式 */
+        .mario-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0 12px; /* 創造卡片間距 */
+        }
+        .mario-table th {
+            padding: 8px 10px;
+            color: #FBD000;
+            text-shadow: 2px 2px 0 #000;
+            font-size: 14px;
+            border-bottom: 4px solid #fff;
+            white-space: nowrap;
+        }
+        .mario-table td {
+            padding: 12px 10px;
+            background-clip: padding-box;
+            border-top: 4px solid;
+            border-bottom: 4px solid;
+            vertical-align: middle;
+        }
+        .mario-table td:first-child {
+            border-left: 4px solid;
+            border-radius: 12px 0 0 12px;
+        }
+        .mario-table td:last-child {
+            border-right: 4px solid;
+            border-radius: 0 12px 12px 0;
+        }
+
+        /* 粉色童趣捲動條 */
+        .mario-scrollbar::-webkit-scrollbar { width: 16px; height: 16px; }
+        .mario-scrollbar::-webkit-scrollbar-track { background: #FFB6C1; border-radius: 8px; border: 3px solid #FFF; }
+        .mario-scrollbar::-webkit-scrollbar-thumb { background: #FF1493; border-radius: 8px; border: 3px solid #FFF; }
+
+        .overlay {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.75);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 50;
+            backdrop-filter: blur(4px);
+        }
+
+        /* 虛擬搖桿與按鈕 */
+        #mobileControls {
+            position: absolute; bottom: 20px; left: 0; width: 100%; height: 150px;
+            pointer-events: none; display: flex; justify-content: space-between; align-items: flex-end;
+            padding: 0 40px; z-index: 30;
+        }
+        .joystick-zone, .btn-zone { pointer-events: auto; }
+
+        #joystickBase {
+            width: 130px; height: 130px;
+            background: rgba(0, 0, 0, 0.4); border: 6px solid #fff; border-radius: 50%;
+            position: relative; box-shadow: 0 0 20px rgba(0,0,0,0.3);
+        }
+        #joystickStick {
+            width: 60px; height: 60px;
+            background: #E52521; border-radius: 50%; position: absolute;
+            top: 50%; left: 50%; transform: translate(-50%, -50%);
+            border: 4px solid #000; box-shadow: inset -4px -4px 0 rgba(0,0,0,0.4);
+        }
+
+        #shootBtn {
+            width: 100px; height: 100px;
+            background: #E52521; border-radius: 50%; border: 6px solid #fff;
+            color: white; font-size: 40px; box-shadow: 0 8px 0 #8b0000;
+            display: flex; justify-content: center; align-items: center; user-select: none;
+            transition: transform 0.1s, box-shadow 0.1s; text-shadow: 2px 2px 0 #000;
+        }
+        #shootBtn:active { transform: translateY(8px); box-shadow: 0 0 0 #8b0000; }
+
+        /* HUD */
+        .hud-container {
+            position: absolute; top: 0; left: 0; width: 100%;
+            padding: 20px 30px; display: flex; justify-content: space-between; align-items: flex-start;
+            z-index: 20; pointer-events: none;
+        }
+        
+        /* 音量與控制按鈕區域 */
+        .controls-container {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            pointer-events: auto; /* 加上這行，讓按鈕可以被正常點擊 */
+        }
+        
+        .icon-btn {
+            background-color: #FFF;
+            border: 4px solid #000;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 24px;
+            box-shadow: 0 4px 0 #000;
+            cursor: pointer;
+            pointer-events: auto;
+            transition: all 0.1s;
+        }
+        .icon-btn:active {
+            transform: translateY(4px);
+            box-shadow: 0 0 0 #000;
+        }
+
+        /* 點點背景 */
+        .polka-dot-bg {
+            background-color: #FFC0CB;
+            background-image: radial-gradient(#FFF 15%, transparent 16%), radial-gradient(#FFF 15%, transparent 16%);
+            background-size: 40px 40px;
+            background-position: 0 0, 20px 20px;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="hud" class="hud-container hidden text-white mario-text-shadow">
+        <div class="flex gap-8">
+            <div class="text-center">
+                <div class="mb-1 text-yellow-300 font-bold tracking-widest text-lg">PLAYER</div>
+                <div id="playerNameHUD" class="text-xl pixel-font text-white">MARIO</div>
+            </div>
+            <div class="text-center">
+                <div class="mb-1 text-yellow-300 font-bold tracking-widest text-lg">SCORE</div>
+                <div id="scoreDisplay" class="text-xl pixel-font text-white">000000</div>
+            </div>
+            <div class="text-center">
+                <div class="mb-1 flex items-center justify-center gap-2 font-bold tracking-widest text-lg">
+                    <span class="text-red-500 text-shadow-none">🍄</span> HP
+                </div>
+                <div id="hpDisplay" class="text-2xl tracking-widest text-yellow-300">⭐⭐⭐</div>
+            </div>
+        </div>
+        
+        <div class="controls-container">
+            <!-- 音樂切換按鈕 -->
+            <button id="musicToggleBtn" class="icon-btn" title="切換背景音樂">🎵</button>
+            <button id="endGameBtn" class="mario-btn mario-btn-red px-5 py-3 flex items-center gap-3">
+                <span class="pixel-font text-xs">SAVE</span>
+                <span class="zh-heavy text-xl">儲存並結束</span>
+            </button>
+        </div>
+    </div>
+
+    <canvas id="gameCanvas"></canvas>
+
+    <!-- 虛擬控制 (手機端顯示) -->
+    <div id="mobileControls" class="hidden">
+        <div class="joystick-zone" id="joystickZone">
+            <div id="joystickBase"><div id="joystickStick"></div></div>
+        </div>
+        <div class="btn-zone">
+            <div id="shootBtn">🍄</div>
+        </div>
+    </div>
+
+    <div id="startOverlay" class="overlay">
+        <div class="mario-panel w-[90%] max-w-[600px] p-10 text-center relative flex flex-col gap-6 bg-[#5C94FC] overflow-hidden">
+            <!-- 裝飾用磚塊背景 -->
+            <div class="absolute bottom-0 left-0 w-full h-10 flex" style="background-image: linear-gradient(45deg, #8B4513 25%, transparent 25%, transparent 75%, #8B4513 75%, #8B4513), linear-gradient(45deg, #8B4513 25%, transparent 25%, transparent 75%, #8B4513 75%, #8B4513); background-color: #CD853F; background-size: 20px 20px; background-position: 0 0, 10px 10px;"></div>
+            
+            <h1 class="text-4xl md:text-5xl font-bold pixel-font leading-snug text-white mario-text-shadow mt-2 z-10">
+                <span class="text-[#E52521]">SUPER</span><br>
+                <span class="text-[#FBD000]">STORY</span><br>
+                <span class="text-[#43B047]">BROS.</span>
+            </h1>
+            
+            <div class="z-10 text-left bg-black/85 text-white p-6 rounded-xl border-4 border-white shadow-xl">
+                <p class="text-yellow-400 text-xl mb-4 text-center zh-heavy tracking-widest">【 遊戲說明 】</p>
+                <div class="space-y-4 text-lg md:text-xl zh-heavy leading-relaxed">
+                    <p>⭐ 操控角色移動，角色會<span class="text-yellow-300">自動彈跳</span>！</p>
+                    <p>⭐ 對準高度，發射 <span class="text-red-400">🍄香菇</span> 射擊正確選項。</p>
+                    <p>⭐ 答對 <span class="text-green-400">+10分</span>。答錯、漏答或被撞會<span class="text-red-400">⚡扣血</span>！</p>
+                </div>
+            </div>
+
+            <input type="text" id="playerNameInput" placeholder="輸入玩家名稱 / ENTER NAME..." class="z-10 w-full p-4 rounded-xl border-[5px] border-black text-center text-xl zh-heavy focus:outline-none focus:border-red-500 uppercase bg-yellow-50 placeholder-gray-400 shadow-inner pixel-font">
+            
+            <div class="z-10 flex gap-4 mt-4">
+                <button id="showLeaderboardBtn" class="flex-1 mario-btn mario-btn-yellow py-4 px-2 flex flex-col items-center justify-center gap-2">
+                    <span class="pixel-font text-xs">RANK</span>
+                    <span class="zh-heavy text-xl">排行榜</span>
+                </button>
+                <button id="startBtn" class="flex-[2] mario-btn mario-btn-green py-4 px-2 flex flex-col items-center justify-center gap-2 animate-pulse">
+                    <span class="pixel-font text-lg">START</span>
+                    <span class="zh-heavy text-2xl text-green-100">開始冒險</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="leaderboardOverlay" class="overlay hidden">
+        <div class="mario-panel max-h-[90vh] flex flex-col w-[95%] max-w-[1000px] p-6 relative polka-dot-bg border-8 border-white">
+            
+            <h2 class="text-3xl md:text-4xl mb-4 text-center text-white pixel-font mario-text-shadow mt-2 flex items-center justify-center gap-4">
+                ⭐ <span class="zh-heavy text-4xl mt-2">英雄排行榜</span> ⭐
+            </h2>
+
+            <div class="overflow-x-auto mario-scrollbar flex-grow bg-black/80 rounded-2xl border-4 border-black mb-6 shadow-inner" style="max-height: 55vh;">
+                <!-- 結構化表格 -->
+                <div class="p-4 min-w-[750px]">
+                    <table class="mario-table">
+                        <thead>
+                            <tr>
+                                <th class="w-16 text-center"><span class="pixel-font text-[10px]">RANK</span><br><span class="zh-heavy text-sm text-gray-300">名次</span></th>
+                                <th class="text-left w-32"><span class="pixel-font text-[10px]">PLAYER</span><br><span class="zh-heavy text-sm text-gray-300">玩家</span></th>
+                                <th class="text-center w-28"><span class="pixel-font text-[10px]">SCORE</span><br><span class="zh-heavy text-sm text-gray-300">總分</span></th>
+                                <th class="text-center w-20"><span class="pixel-font text-[10px]">O</span><br><span class="zh-heavy text-sm text-gray-300">答對</span></th>
+                                <th class="text-center w-20"><span class="pixel-font text-[10px]">X</span><br><span class="zh-heavy text-sm text-gray-300">答錯</span></th>
+                                <th class="text-center w-24"><span class="pixel-font text-[10px]">%</span><br><span class="zh-heavy text-sm text-gray-300">準確率</span></th>
+                                <th class="text-center w-24"><span class="pixel-font text-[10px]">TIME</span><br><span class="zh-heavy text-sm text-gray-300">時間</span></th>
+                            </tr>
+                        </thead>
+                        <tbody id="leaderboardList">
+                            <!-- Table rows injected via JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <button id="closeLeaderboardBtn" class="w-full mx-auto max-w-sm mario-btn mario-btn-pink py-4 px-6 text-xl tracking-widest shadow-lg flex justify-center items-center gap-3">
+                <span class="zh-heavy text-2xl">回到冒險</span>
+                <span class="pixel-font text-xs">BACK</span>
+            </button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        let audioCtx;
+        let bgmSynth, bgmSequence;
+        let isMusicPlaying = true;
+        const musicToggleBtn = document.getElementById('musicToggleBtn');
+
+        function initAudio() {
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            
+            // 確保 Tone.js 環境啟動
+            if (Tone.context.state !== 'running') {
+                Tone.start();
+            }
+        }
+
+        // 建立 Tone.js 背景音樂
+        function setupBGM() {
+            if (bgmSynth) return; // 已經建立過就不再重複建立
+            
+            // 使用矩形波合成器，製造復古 8-bit 感
+            bgmSynth = new Tone.Synth({
+                oscillator: { type: "square" },
+                envelope: { attack: 0.01, decay: 0.1, sustain: 0.2, release: 0.1 }
+            }).toDestination();
+            
+            // 調低一點音量避免太吵
+            bgmSynth.volume.value = -12; 
+
+            // 一段節奏輕快、活潑的 8-bit 風格旋律 (C大調)
+            const melody = [
+                { time: '0:0:0', note: 'C4', duration: '8n' },
+                { time: '0:0:2', note: 'E4', duration: '8n' },
+                { time: '0:1:0', note: 'G4', duration: '8n' },
+                { time: '0:1:2', note: 'C5', duration: '4n' },
+                
+                { time: '0:2:0', note: 'G4', duration: '8n' },
+                { time: '0:2:2', note: 'E4', duration: '8n' },
+                { time: '0:3:0', note: 'C4', duration: '4n' },
+                
+                { time: '1:0:0', note: 'D4', duration: '8n' },
+                { time: '1:0:2', note: 'F4', duration: '8n' },
+                { time: '1:1:0', note: 'A4', duration: '8n' },
+                { time: '1:1:2', note: 'D5', duration: '4n' },
+                
+                { time: '1:2:0', note: 'A4', duration: '8n' },
+                { time: '1:2:2', note: 'F4', duration: '8n' },
+                { time: '1:3:0', note: 'D4', duration: '4n' }
+            ];
+
+            // 建立迴圈音序器
+            bgmSequence = new Tone.Part((time, event) => {
+                bgmSynth.triggerAttackRelease(event.note, event.duration, time);
+            }, melody);
+            
+            // 設定循環與長度
+            bgmSequence.loop = true;
+            bgmSequence.loopEnd = '2m'; // 2 個小節後循環
+            
+            Tone.Transport.bpm.value = 140; // 節奏速度
+        }
+
+        function playBGM() {
+            if (!bgmSynth) setupBGM();
+            if (isMusicPlaying) {
+                Tone.Transport.start();
+                bgmSequence.start(0);
+                musicToggleBtn.innerHTML = '🎵';
+                musicToggleBtn.style.opacity = '1';
+            }
+        }
+
+        function stopBGM() {
+            Tone.Transport.stop();
+            if (bgmSequence) bgmSequence.stop();
+        }
+
+        musicToggleBtn.addEventListener('click', () => {
+            isMusicPlaying = !isMusicPlaying;
+            if (isMusicPlaying) {
+                playBGM();
+            } else {
+                stopBGM();
+                musicToggleBtn.innerHTML = '🔇';
+                musicToggleBtn.style.opacity = '0.5';
+            }
+        });
+
+        function playSound(type) {
+            if (!audioCtx) return;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            const now = audioCtx.currentTime;
+
+            if (type === 'shoot') {
+                osc.type = 'sine'; osc.frequency.setValueAtTime(800, now); osc.frequency.exponentialRampToValueAtTime(1200, now + 0.1);
+                gain.gain.setValueAtTime(0.3, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+                osc.start(now); osc.stop(now + 0.1);
+            } else if (type === 'correct') {
+                osc.type = 'square'; osc.frequency.setValueAtTime(440, now); osc.frequency.setValueAtTime(554, now + 0.1); osc.frequency.setValueAtTime(659, now + 0.2);
+                gain.gain.setValueAtTime(0.2, now); gain.gain.linearRampToValueAtTime(0, now + 0.4);
+                osc.start(now); osc.stop(now + 0.4);
+            } else if (type === 'wrong') {
+                osc.type = 'sawtooth'; osc.frequency.setValueAtTime(300, now); osc.frequency.linearRampToValueAtTime(150, now + 0.3);
+                gain.gain.setValueAtTime(0.2, now); gain.gain.linearRampToValueAtTime(0, now + 0.3);
+                osc.start(now); osc.stop(now + 0.3);
+            } else if (type === 'hit') {
+                osc.type = 'square'; osc.frequency.setValueAtTime(150, now); osc.frequency.exponentialRampToValueAtTime(50, now + 0.4);
+                gain.gain.setValueAtTime(0.3, now); gain.gain.linearRampToValueAtTime(0, now + 0.4);
+                osc.start(now); osc.stop(now + 0.4);
+            } else if (type === 'shock') {
+                // 雷擊專用的電子合成音
+                osc.type = 'sawtooth'; osc.frequency.setValueAtTime(800, now); osc.frequency.exponentialRampToValueAtTime(100, now + 0.3);
+                gain.gain.setValueAtTime(0.4, now); gain.gain.linearRampToValueAtTime(0.1, now + 0.05); gain.gain.linearRampToValueAtTime(0.4, now + 0.1); gain.gain.linearRampToValueAtTime(0, now + 0.3);
+                osc.start(now); osc.stop(now + 0.3);
+            }
+        }
+
+        // Firebase Sandbox Simulation
+        function saveToFirebaseSandbox(record) {
+            let data = JSON.parse(localStorage.getItem('storyGame_mario_sandbox') || '[]');
+            data.push(record);
+            data.sort((a, b) => b.score - a.score);
+            localStorage.setItem('storyGame_mario_sandbox', JSON.stringify(data));
+        }
+
+        function fetchFromFirebaseSandbox() {
+            return JSON.parse(localStorage.getItem('storyGame_mario_sandbox') || '[]');
+        }
+
+        let GAME_WIDTH = window.innerWidth;
+        let GAME_HEIGHT = window.innerHeight;
+        let lastTime = 0;
+        let gameState = 'START'; 
+        let currentUsername = "MARIO";
+        let gameStartTime = 0;
+
+        let player;
+        let npcs = [];
+        let projectiles = [];
+        let particles = [];
+        let clouds = [];
+        
+        let score = 0;
+        let hp = 3;
+        let stats = { correct: 0, wrong: 0 };
+        let npcSpawnTimer = 0;
+        const npcSpawnInterval = 1000;
+        const groundHeight = 120;
+
+        // 21 題敘事寫作題庫 (已審核答案正確性)
+        const questionPool = [
+            { q: "故事發生的時間與地點？", correct: "背景", wrongs: ["角色", "高潮"] },
+            { q: "故事的核心人物？", correct: "主角", wrongs: ["作者", "讀者"] },
+            { q: "阻礙主角的反派或對手？", correct: "反派", wrongs: ["英雄", "助手"] },
+            { q: "故事中遭遇的困難或對立？", correct: "衝突", wrongs: ["和解", "標題"] },
+            { q: "故事最緊張、最精彩的部分？", correct: "高潮", wrongs: ["開端", "結尾"] },
+            { q: "故事最終的結局與問題解決？", correct: "結局", wrongs: ["起點", "懸念"] },
+            { q: "故事想要傳達的核心思想？", correct: "主題", wrongs: ["劇情", "對白"] },
+            { q: "使用「我」來敘述故事的視角？", correct: "第一人稱", wrongs: ["第三人稱", "第二人稱"] },
+            { q: "使用「他」來敘述故事的視角？", correct: "第三人稱", wrongs: ["第一人稱", "第二人稱"] },
+            { q: "角色之間交談的內容？", correct: "對話", wrongs: ["旁白", "獨白"] },
+            { q: "打斷順序，回顧過去發生的事？", correct: "倒敘", wrongs: ["插敘", "順敘"] },
+            { q: "預先暗示未來會發生的情節？", correct: "伏筆", wrongs: ["總結", "誇飾"] },
+            { q: "為了吸引讀者看下去的未知感？", correct: "懸念", wrongs: ["無聊", "平淡"] },
+            { q: "賦予非人類事物人類的情感？", correct: "擬人", wrongs: ["譬喻", "誇飾"] },
+            { q: "為了讓畫面生動，對事物進行刻畫？", correct: "描寫", wrongs: ["議論", "抒情"] },
+            { q: "故事初介紹背景與角色的階段？", correct: "開端", wrongs: ["高潮", "結局"] },
+            { q: "衝突逐漸加劇，推向高潮的過程？", correct: "發展", wrongs: ["結局", "尾聲"] },
+            { q: "主角性格或想法發生的轉變？", correct: "角色成長", wrongs: ["停滯不前", "外貌改變"] },
+            { q: "描繪五官(視覺、聽覺等)的寫作？", correct: "感官描寫", wrongs: ["心理描寫", "抽象說理"] },
+            { q: "透過比喻讓事物更具象化？", correct: "譬喻", wrongs: ["直述", "疑問"] },
+            { q: "敘述者了解所有角色的內心？", correct: "全知視角", wrongs: ["限制視角", "第一人稱"] }
+        ];
+
+        const keys = { w: false, a: false, s: false, d: false, ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false, ' ': false };
+        let joystickData = { active: false, normalizedX: 0, normalizedY: 0 };
+
+        window.addEventListener('keydown', (e) => { if (keys.hasOwnProperty(e.key)) keys[e.key] = true; });
+        window.addEventListener('keyup', (e) => { if (keys.hasOwnProperty(e.key)) keys[e.key] = false; });
+        window.addEventListener('resize', () => { GAME_WIDTH = window.innerWidth; GAME_HEIGHT = window.innerHeight; canvas.width = GAME_WIDTH; canvas.height = GAME_HEIGHT; });
+        canvas.width = GAME_WIDTH; canvas.height = GAME_HEIGHT;
+
+        const joystickBase = document.getElementById('joystickBase');
+        const joystickStick = document.getElementById('joystickStick');
+        let jTouchId = null; let jCenter = { x: 0, y: 0 };
+
+        joystickBase.addEventListener('touchstart', (e) => {
+            e.preventDefault(); const touch = e.changedTouches[0]; jTouchId = touch.identifier;
+            const rect = joystickBase.getBoundingClientRect(); jCenter = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+            updateJoystick(touch.clientX, touch.clientY);
+        });
+        joystickBase.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            for (let i = 0; i < e.changedTouches.length; i++) {
+                if (e.changedTouches[i].identifier === jTouchId) updateJoystick(e.changedTouches[i].clientX, e.changedTouches[i].clientY);
+            }
+        });
+        const resetJoystick = () => { jTouchId = null; joystickData.active = false; joystickData.normalizedX = 0; joystickData.normalizedY = 0; joystickStick.style.transform = `translate(-50%, -50%)`; };
+        joystickBase.addEventListener('touchend', resetJoystick); joystickBase.addEventListener('touchcancel', resetJoystick);
+
+        function updateJoystick(tx, ty) {
+            let dx = tx - jCenter.x; let dy = ty - jCenter.y; let dist = Math.sqrt(dx * dx + dy * dy); let maxDist = 40;
+            if (dist > maxDist) { dx = (dx / dist) * maxDist; dy = (dy / dist) * maxDist; }
+            joystickStick.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+            joystickData.active = true; joystickData.normalizedX = dx / maxDist; joystickData.normalizedY = dy / maxDist;
+        }
+
+        const shootBtn = document.getElementById('shootBtn');
+        shootBtn.addEventListener('touchstart', (e) => { e.preventDefault(); if (gameState === 'PLAYING') player.shoot(); });
+        shootBtn.addEventListener('mousedown', (e) => { e.preventDefault(); if (gameState === 'PLAYING') player.shoot(); });
+
+        if ('ontouchstart' in window || navigator.maxTouchPoints > 0) document.getElementById('mobileControls').classList.remove('hidden');
+
+        // Helper to draw pixel art rectangles
+        function drawPixelRect(ctx, x, y, w, h, color) { ctx.fillStyle = color; ctx.fillRect(x, y, w, h); }
+
+        class Player {
+            constructor(x, y) {
+                this.width = 40; this.height = 60; this.x = x; this.y = y;
+                this.speed = 300; this.color = '#e52521'; this.facingRight = true;
+                this.animFrame = 0; this.bounceOffset = 0; this.bouncePhase = 0; this.bounceSpeed = 15;
+                this.lastShotTime = 0; this.shootCooldown = 250;
+                this.shockTimer = 0; // 雷擊特效計時器
+            }
+            update(dt) {
+                if (this.shockTimer > 0) this.shockTimer -= dt;
+
+                let moveX = 0; let moveY = 0;
+                if (keys.ArrowLeft || keys.a) moveX -= 1; if (keys.ArrowRight || keys.d) moveX += 1;
+                if (keys.ArrowUp || keys.w) moveY -= 1; if (keys.ArrowDown || keys.s) moveY += 1;
+                if (joystickData.active) { moveX = joystickData.normalizedX; moveY = joystickData.normalizedY; }
+
+                if (moveX !== 0 && moveY !== 0) { const length = Math.sqrt(moveX*moveX + moveY*moveY); moveX /= length; moveY /= length; }
+
+                if (moveX !== 0 || moveY !== 0) {
+                    if (moveX > 0) this.facingRight = true; else if (moveX < 0) this.facingRight = false;
+                    this.x += moveX * this.speed * dt; this.y += moveY * this.speed * dt;
+                    this.bouncePhase += dt * this.bounceSpeed;
+                    this.bounceOffset = Math.abs(Math.sin(this.bouncePhase)) * 30;
+                    this.animFrame = this.bounceOffset > 15 ? 1 : 0;
+                } else {
+                    this.bouncePhase = 0; this.bounceOffset = 0; this.animFrame = 0;
+                }
+
+                this.x = Math.max(0, Math.min(GAME_WIDTH - this.width, this.x));
+                this.y = Math.max(100, Math.min(GAME_HEIGHT - groundHeight - this.height, this.y));
+
+                if (keys[' '] && performance.now() - this.lastShotTime > this.shootCooldown) this.shoot();
+            }
+            shoot() {
+                if (performance.now() - this.lastShotTime > this.shootCooldown) {
+                    playSound('shoot');
+                    projectiles.push(new Projectile(this.facingRight ? this.x + this.width : this.x, this.y - this.bounceOffset + this.height / 2, this.facingRight ? 1 : -1));
+                    this.lastShotTime = performance.now();
+                }
+            }
+            draw(ctx) {
+                ctx.save(); ctx.translate(Math.floor(this.x), Math.floor(this.y - this.bounceOffset));
+                if (!this.facingRight) { ctx.scale(-1, 1); ctx.translate(-this.width, 0); }
+                drawPixelRect(ctx, 10, 20, 20, 30, '#00439C'); // Overalls
+                drawPixelRect(ctx, 10, 20, 20, 10, this.color); // Shirt
+                drawPixelRect(ctx, 10, 0, 20, 20, '#ffcc99'); // Head
+                drawPixelRect(ctx, 5, 0, 25, 8, this.color); drawPixelRect(ctx, 25, 8, 15, 4, this.color); // Hat
+                drawPixelRect(ctx, 22, 10, 4, 4, '#000'); // Eye
+                
+                if (this.animFrame === 0) {
+                    drawPixelRect(ctx, 10, 50, 8, 10, '#8b4513'); drawPixelRect(ctx, 22, 50, 8, 10, '#8b4513');
+                } else {
+                    drawPixelRect(ctx, 8, 45, 8, 10, '#8b4513'); drawPixelRect(ctx, 24, 45, 8, 10, '#8b4513');
+                }
+                
+                // 玩家被雷擊時的身體閃爍特效
+                if (this.shockTimer > 0 && Math.floor(this.shockTimer * 20) % 2 === 0) {
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+                    ctx.fillRect(0, 0, this.width, this.height);
+                }
+                ctx.restore();
+
+                // 畫出從天而降的閃電特效 (還原到全局座標畫線)
+                if (this.shockTimer > 0) {
+                    ctx.save();
+                    ctx.strokeStyle = '#FBD000'; ctx.lineWidth = 6; ctx.shadowColor = '#FFF'; ctx.shadowBlur = 10;
+                    ctx.beginPath();
+                    let startX = this.x + this.width / 2;
+                    ctx.moveTo(startX, 0); // 從螢幕最頂部開始
+                    let currentY = 0; let currentX = startX; let targetY = this.y - this.bounceOffset;
+                    while (currentY < targetY) {
+                        currentY += 20 + Math.random() * 20;
+                        if (currentY > targetY) currentY = targetY;
+                        currentX += (Math.random() - 0.5) * 40; // 閃電的曲折
+                        ctx.lineTo(currentX, currentY);
+                    }
+                    ctx.stroke();
+                    ctx.strokeStyle = '#FFF'; ctx.lineWidth = 2; ctx.stroke(); // 閃電白芯
+                    ctx.restore();
+                }
+            }
+        }
+
+        class Projectile {
+            constructor(x, y, dirX) {
+                this.x = x; this.y = y; this.speed = 600; this.dirX = dirX;
+                this.width = 24; this.height = 24; this.markedForDeletion = false; this.rotation = 0;
+            }
+            update(dt) {
+                this.x += this.speed * this.dirX * dt; this.rotation += dt * 10 * this.dirX;
+                if (this.x > GAME_WIDTH + 50 || this.x < -50) this.markedForDeletion = true;
+            }
+            draw(ctx) {
+                ctx.save(); ctx.translate(this.x, this.y); ctx.rotate(this.rotation);
+                ctx.font = '24px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('🍄', 0, 0);
+                ctx.restore();
+            }
+        }
+
+        class FloatingOption {
+            constructor(x, y, text, isCorrect) {
+                this.w = 200; this.h = 48; this.x = x; this.y = y;
+                this.text = text; this.isCorrect = isCorrect; this.active = true;
+            }
+            draw(ctx) {
+                if (!this.active) return;
+                ctx.save(); ctx.translate(this.x, this.y);
+                
+                // 瑪利歐問號方塊風格
+                ctx.fillStyle = '#FBD000';
+                ctx.fillRect(-this.w/2, -this.h/2, this.w, this.h);
+                
+                // 立體陰影與亮面
+                ctx.fillStyle = '#FFF'; ctx.fillRect(-this.w/2, -this.h/2, this.w, 4); ctx.fillRect(-this.w/2, -this.h/2, 4, this.h);
+                ctx.fillStyle = '#C84C0C'; ctx.fillRect(-this.w/2, this.h/2 - 4, this.w, 4); ctx.fillRect(this.w/2 - 4, -this.h/2, 4, this.h);
+                
+                // 黑邊框
+                ctx.strokeStyle = '#000'; ctx.lineWidth = 4; ctx.strokeRect(-this.w/2, -this.h/2, this.w, this.h);
+
+                // 鉚釘
+                ctx.fillStyle = '#000'; 
+                ctx.fillRect(-this.w/2 + 6, -this.h/2 + 6, 4, 4); ctx.fillRect(this.w/2 - 10, -this.h/2 + 6, 4, 4);
+                ctx.fillRect(-this.w/2 + 6, this.h/2 - 10, 4, 4); ctx.fillRect(this.w/2 - 10, this.h/2 - 10, 4, 4);
+
+                // 文字
+                ctx.fillStyle = '#000'; ctx.font = '16px "DotGothic16", sans-serif';
+                ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                ctx.fillText(this.text, 0, 2);
+                ctx.restore();
+            }
+            checkHit(px, py) {
+                if (!this.active) return false;
+                return (px > this.x - this.w/2 && px < this.x + this.w/2 && py > this.y - this.h/2 && py < this.y + this.h/2);
+            }
+        }
+
+        class NPC {
+            constructor() {
+                this.w = 50; this.h = 50; this.x = GAME_WIDTH + 100; this.y = GAME_HEIGHT - groundHeight - this.h;
+                this.speed = 50 + Math.random() * 30; this.markedForDeletion = false; this.bouncePhase = 0;
+                
+                const qData = questionPool[Math.floor(Math.random() * questionPool.length)];
+                this.question = qData.q;
+                let opts = [ { t: qData.correct, c: true }, { t: qData.wrongs[0], c: false }, { t: qData.wrongs[1], c: false } ];
+                opts.sort(() => Math.random() - 0.5);
+
+                this.options = [
+                    new FloatingOption(this.x, this.y - 200, opts[0].t, opts[0].c),
+                    new FloatingOption(this.x, this.y - 140, opts[1].t, opts[1].c),
+                    new FloatingOption(this.x, this.y - 80, opts[2].t, opts[2].c)
+                ];
+            }
+            update(dt) {
+                this.x -= this.speed * dt; this.bouncePhase += dt * 10;
+                this.options.forEach(opt => { opt.x = this.x; });
+                // 移除這裡的自動刪除，改由 gameLoop 統一處理漏答邏輯
+            }
+            draw(ctx) {
+                let bounceY = Math.abs(Math.sin(this.bouncePhase)) * 12;
+                
+                // Question Box
+                ctx.save(); ctx.translate(this.x, this.y - 280);
+                ctx.fillStyle = '#000'; ctx.fillRect(-140, -25, 280, 50);
+                ctx.strokeStyle = '#fff'; ctx.lineWidth = 4; ctx.strokeRect(-140, -25, 280, 50);
+                ctx.fillStyle = '#fff'; ctx.font = '16px "DotGothic16", sans-serif';
+                ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(this.question, 0, 2);
+                ctx.restore();
+
+                this.options.forEach(opt => opt.draw(ctx));
+
+                // Goomba
+                ctx.save(); ctx.translate(this.x, this.y - bounceY);
+                ctx.fillStyle = '#C84C0C'; ctx.beginPath(); ctx.moveTo(-20, 20); ctx.lineTo(0, -10); ctx.lineTo(20, 20); ctx.fill(); // Body
+                ctx.fillStyle = '#FBD000'; ctx.fillRect(-20, 20, 40, 10); // Face
+                ctx.fillStyle = 'white'; ctx.fillRect(-12, 5, 8, 12); ctx.fillRect(4, 5, 8, 12); // Eyes
+                ctx.fillStyle = 'black'; ctx.fillRect(-8, 9, 4, 8); ctx.fillRect(4, 9, 4, 8); // Pupils
+                ctx.strokeStyle = 'black'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(-15, 0); ctx.lineTo(-5, 6); ctx.stroke(); ctx.beginPath(); ctx.moveTo(15, 0); ctx.lineTo(5, 6); ctx.stroke();
+                
+                ctx.fillStyle = '#000';
+                if (bounceY > 6) { ctx.fillRect(-15, 30, 10, 8); ctx.fillRect(5, 30, 10, 8); } 
+                else { ctx.fillRect(-20, 30, 15, 6); ctx.fillRect(5, 30, 15, 6); }
+                ctx.restore();
+            }
+        }
+
+        function spawnNPC() { npcs.push(new NPC()); }
+
+        function createParticles(x, y, color) {
+            for(let i=0; i<15; i++) {
+                particles.push({ x: x, y: y, vx: (Math.random() - 0.5) * 300, vy: (Math.random() - 0.5) * 300, life: 1.0, color: color });
+            }
+        }
+
+        function initClouds() {
+            clouds = [];
+            for(let i=0; i<5; i++) clouds.push({ x: Math.random() * GAME_WIDTH, y: Math.random() * (GAME_HEIGHT/2), speed: 10 + Math.random() * 20, scale: 0.5 + Math.random() });
+        }
+
+        function updateHUD() {
+            document.getElementById('playerNameHUD').innerText = currentUsername;
+            document.getElementById('scoreDisplay').innerText = score.toString().padStart(6, '0');
+            let hpStr = ''; for(let i=0; i<3; i++) hpStr += (i < hp) ? '⭐' : '⬛';
+            document.getElementById('hpDisplay').innerText = hpStr;
+        }
+
+        function saveAndShowLeaderboard() {
+            gameState = 'GAME_OVER';
+            stopBGM(); // 遊戲結束時停止音樂
+            let playTime = Math.floor((Date.now() - gameStartTime) / 1000);
+            let totalAnswers = stats.correct + stats.wrong;
+            let accuracy = totalAnswers === 0 ? 0 : Math.round((stats.correct / totalAnswers) * 100);
+            
+            saveToFirebaseSandbox({ username: currentUsername || "MARIO", startTime: new Date().toLocaleTimeString(), score: score, correct: stats.correct, wrong: stats.wrong, accuracyRate: accuracy, totalPlaytime: playTime });
+            
+            document.getElementById('hud').classList.add('hidden');
+            showLeaderboard();
+        }
+
+        document.getElementById('endGameBtn').addEventListener('click', () => { playSound('hit'); saveAndShowLeaderboard(); });
+
+        function showLeaderboard() {
+            const lbOverlay = document.getElementById('leaderboardOverlay');
+            const lbList = document.getElementById('leaderboardList');
+            lbOverlay.classList.remove('hidden');
+            
+            const records = fetchFromFirebaseSandbox();
+            lbList.innerHTML = '';
+            
+            if (records.length === 0) {
+                lbList.innerHTML = '<tr><td colspan="7" class="text-center p-8 text-white zh-heavy text-xl">目前尚無紀錄，趕快開始冒險吧！</td></tr>';
+                return;
+            }
+            
+            records.forEach((r, idx) => {
+                let rankIcon, rowStyle = "", borderColor = "#444";
+
+                if (idx === 0) { 
+                    rankIcon = '<div class="animate-bounce">👑<br>1</div>'; 
+                    rowStyle = "bg-[#FBD000] text-black"; borderColor = "#FFF";
+                } else if (idx === 1) { 
+                    rankIcon = '<div>🍄<br>2</div>'; 
+                    rowStyle = "bg-[#E2E8F0] text-black"; borderColor = "#FFF";
+                } else if (idx === 2) { 
+                    rankIcon = '<div>🌻<br>3</div>'; 
+                    rowStyle = "bg-[#FDBA74] text-black"; borderColor = "#FFF";
+                } else {
+                    rankIcon = idx + 1;
+                    rowStyle = "bg-gray-800 text-white"; borderColor = "#000";
+                }
+                
+                lbList.innerHTML += `
+                    <tr class="${rowStyle} transition-transform hover:scale-[1.02] shadow-md">
+                        <td class="text-center pixel-font text-xl md:text-2xl" style="border-color: ${borderColor}">${rankIcon}</td>
+                        
+                        <td class="text-left" style="border-color: ${borderColor}">
+                            <div class="pixel-font text-sm md:text-base" style="${idx < 3 ? 'text-shadow: 1px 1px 0 #fff;' : ''}">${r.username}</div>
+                            <div class="zh-heavy text-sm mt-1 opacity-80">${r.startTime}</div>
+                        </td>
+                        
+                        <td class="text-center pixel-font text-lg md:text-2xl" style="border-color: ${borderColor}; text-shadow: ${idx < 3 ? '1px 1px 0 #FFF' : '2px 2px 0 #000'}; color: ${idx < 3 ? '#E52521' : '#FBD000'}">
+                            🪙${r.score}
+                        </td>
+                        
+                        <td class="text-center" style="border-color: ${borderColor}">
+                            <div class="bg-white text-green-600 px-3 py-1 rounded-xl border-2 border-black/20 shadow-sm inline-block font-bold zh-heavy text-base md:text-lg">✅ ${r.correct}</div>
+                        </td>
+                        
+                        <td class="text-center" style="border-color: ${borderColor}">
+                            <div class="bg-white text-red-600 px-3 py-1 rounded-xl border-2 border-black/20 shadow-sm inline-block font-bold zh-heavy text-base md:text-lg">❌ ${r.wrong}</div>
+                        </td>
+                        
+                        <td class="text-center" style="border-color: ${borderColor}">
+                            <div class="bg-white text-blue-700 px-3 py-1 rounded-xl border-2 border-black/20 shadow-sm inline-block font-bold zh-heavy text-base md:text-lg">🎯 ${r.accuracyRate}%</div>
+                        </td>
+                        
+                        <td class="text-center" style="border-color: ${borderColor}">
+                            <div class="bg-white text-gray-800 px-3 py-1 rounded-xl border-2 border-black/20 shadow-sm inline-block font-bold zh-heavy text-base md:text-lg">⏱️ ${r.totalPlaytime}s</div>
+                        </td>
+                    </tr>
+                `;
+            });
+        }
+
+        document.getElementById('startBtn').addEventListener('click', async () => {
+            initAudio(); // 初始化音訊環境
+            await Tone.start(); // 確保 Tone.js 就緒
+            
+            let inputName = document.getElementById('playerNameInput').value.trim();
+            if (inputName) currentUsername = inputName;
+            
+            document.getElementById('startOverlay').classList.add('hidden');
+            document.getElementById('hud').classList.remove('hidden');
+            
+            player = new Player(100, GAME_HEIGHT / 2); npcs = []; projectiles = []; particles = []; initClouds();
+            score = 0; hp = 3; stats = { correct: 0, wrong: 0 };
+            gameStartTime = Date.now(); npcSpawnTimer = 0;
+            gameState = 'PLAYING';
+            updateHUD(); lastTime = performance.now();
+            
+            playBGM(); // 開始播放背景音樂
+            
+            requestAnimationFrame(gameLoop);
+        });
+
+        document.getElementById('showLeaderboardBtn').addEventListener('click', showLeaderboard);
+        document.getElementById('closeLeaderboardBtn').addEventListener('click', () => {
+            document.getElementById('leaderboardOverlay').classList.add('hidden');
+            if (gameState === 'GAME_OVER') {
+                document.getElementById('startOverlay').classList.remove('hidden');
+                gameState = 'START';
+            }
+        });
+
+        // 統一處理玩家受傷與特效
+        function damagePlayer(isShock = false) {
+            hp--;
+            updateHUD();
+            if (isShock) {
+                playSound('shock');
+                player.shockTimer = 0.5; // 雷擊維持 0.5 秒
+            } else {
+                playSound('hit');
+                createParticles(player.x, player.y, '#E52521');
+            }
+            if (hp <= 0) saveAndShowLeaderboard();
+        }
+
+        function gameLoop(timestamp) {
+            if (gameState !== 'PLAYING') return;
+            let dt = (timestamp - lastTime) / 1000; lastTime = timestamp; if (dt > 0.1) dt = 0.1;
+
+            // Sky
+            ctx.fillStyle = '#5C94FC'; ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+
+            // Clouds
+            ctx.fillStyle = 'rgba(255,255,255,0.8)';
+            clouds.forEach(c => {
+                c.x -= c.speed * dt; if (c.x < -100) c.x = GAME_WIDTH + 100;
+                ctx.fillRect(c.x, c.y, 60 * c.scale, 20 * c.scale);
+                ctx.fillRect(c.x + 10 * c.scale, c.y - 10 * c.scale, 40 * c.scale, 40 * c.scale);
+            });
+
+            // Ground Block Pattern
+            const groundY = GAME_HEIGHT - groundHeight;
+            ctx.fillStyle = '#C84C0C'; ctx.fillRect(0, groundY, GAME_WIDTH, groundHeight);
+            
+            ctx.strokeStyle = '#000'; ctx.lineWidth = 3;
+            for(let x = (Date.now() / -20) % 40; x < GAME_WIDTH; x += 40) { // Slight scroll effect on grid
+                for(let y = groundY; y < GAME_HEIGHT; y += 40) {
+                    ctx.strokeRect(x, y, 40, 40);
+                    ctx.fillStyle = '#FFAA77'; ctx.fillRect(x+3, y+3, 34, 4); // Highlight
+                    ctx.fillStyle = '#8B2200'; ctx.fillRect(x+3, y+33, 34, 4); // Shadow
+                }
+            }
+            
+            // Grass
+            ctx.fillStyle = '#43B047'; ctx.fillRect(0, groundY, GAME_WIDTH, 15);
+            ctx.strokeStyle = '#000'; ctx.strokeRect(0, groundY, GAME_WIDTH, 15);
+            ctx.fillStyle = '#FFF'; ctx.fillRect(0, groundY, GAME_WIDTH, 4);
+
+            player.update(dt);
+            projectiles.forEach(p => p.update(dt));
+            projectiles = projectiles.filter(p => !p.markedForDeletion);
+
+            if (npcs.length === 0) {
+                npcSpawnTimer += dt * 1000;
+                if (npcSpawnTimer > npcSpawnInterval) { spawnNPC(); npcSpawnTimer = 0; }
+            } else { npcSpawnTimer = 0; }
+
+            for (let i = npcs.length - 1; i >= 0; i--) {
+                let npc = npcs[i]; npc.update(dt);
+                
+                // 檢查是否漏答 (怪物走出畫面左側且未被標記刪除)
+                if (npc.x < -200 && !npc.markedForDeletion) {
+                    npc.markedForDeletion = true;
+                    damagePlayer(true); // 漏答遭到雷擊
+                }
+
+                for (let j = projectiles.length - 1; j >= 0; j--) {
+                    let p = projectiles[j];
+                    for (let opt of npc.options) {
+                        if (opt.checkHit(p.x, p.y)) {
+                            p.markedForDeletion = true;
+                            if (opt.isCorrect) {
+                                playSound('correct'); score += 10; stats.correct++;
+                                createParticles(opt.x, opt.y, '#FBD000'); updateHUD(); npc.markedForDeletion = true;
+                            } else {
+                                playSound('wrong'); stats.wrong++; opt.active = false;
+                                createParticles(opt.x, opt.y, '#E52521');
+                                damagePlayer(true); // 答錯遭到雷擊
+                            }
+                            break;
+                        }
+                    }
+                }
+
+                let dx = (player.x + player.width/2) - npc.x; let dy = (player.y + player.height/2) - npc.y;
+                if (Math.sqrt(dx*dx + dy*dy) < 45 && !npc.markedForDeletion) {
+                    damagePlayer(false); // 撞到怪物普通受傷
+                    npc.markedForDeletion = true;
+                }
+            }
+
+            npcs = npcs.filter(n => !n.markedForDeletion);
+
+            for (let i = particles.length - 1; i >= 0; i--) {
+                let p = particles[i];
+                p.x += p.vx * dt; p.y += p.vy * dt; p.life -= dt * 2;
+                if (p.life <= 0) { particles.splice(i, 1); } 
+                else { ctx.globalAlpha = p.life; ctx.fillStyle = p.color; ctx.fillRect(p.x, p.y, 10, 10); ctx.globalAlpha = 1.0; }
+            }
+
+            npcs.forEach(n => n.draw(ctx)); projectiles.forEach(p => p.draw(ctx)); player.draw(ctx);
+            if (gameState === 'PLAYING') requestAnimationFrame(gameLoop);
+        }
+    </script>
+</body>
+</html>
